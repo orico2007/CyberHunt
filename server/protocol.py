@@ -3,7 +3,7 @@ import os
 import random
 import threading
 
-USERS_FILE = "users.json"
+USERS_FILE = "server/users.json"
 
 class Player:
     def __init__(self, socket, address, username=None):
@@ -72,7 +72,7 @@ class GameRoom:
         self.chat_messages = []  # Store chat messages
         self.chat_lock = threading.Lock()  # Lock for chat messages
     
-    def broadcast_game_state(self, client_socket):
+    def broadcast_game_state(self, client_socket, secure):
         # Broadcast alive/dead status
         status_msg = "STATUS "
         status_msg += " ".join(
@@ -85,16 +85,16 @@ class GameRoom:
         # Broadcast win/loss if only one player is alive
         alive_players = [p for p in self.players if p.is_alive]
         winner_msg = "|WINNER "
-        if len(alive_players) == 1 and self.started:
+        if len(alive_players) == 1:
             winner = alive_players[0]
             winner_msg += f"username={winner.username}"
-            self.started = False  # Stop the game
+            #self.started = False  # Stop the game
         
         # Broadcast the chat messages every 0.5 seconds
         chat_msg = "|CHAT "
         chat_msg += " // ".join(self.chat_messages)
 
-        sendWithSize(f"{status_msg}{current_turn_msg}{winner_msg}{chat_msg}", client_socket)
+        sendWithSize(f"{status_msg}{current_turn_msg}{winner_msg}{chat_msg}", client_socket, secure)
 
         
     
@@ -137,11 +137,11 @@ class GameRoom:
         self.turn_index = (self.turn_index + 1) % len(self.players)
         self.start_turn()
 
-    def handle_command(self, player, command):
+    def handle_command(self, player, command, secure):
         with self.lock:
             # Check if it's the player's turn
             if not player.turn_ready:
-                sendWithSize('ACTION_RESULT success=false msg="It\'s not your turn!"', player.socket)
+                sendWithSize('ACTION_RESULT success=false msg="It\'s not your turn!"', player.socket, secure)
                 return
 
             cmd_type = command['type']
@@ -150,9 +150,10 @@ class GameRoom:
             success = False
 
             if not player.is_alive:
-                sendWithSize('ACTION_RESULT success=false msg="You are eliminated."', player.socket)
+                sendWithSize('ACTION_RESULT success=false msg="You are eliminated."', player.socket, secure)
                 return
-
+            
+            player.encrypted = False
             # Handle the command based on its type
             match cmd_type:
                 case 'SCAN':
@@ -164,31 +165,49 @@ class GameRoom:
                 case 'ENCRYPT':
                     msg, success = gameEncrypt(player)
 
-            sendWithSize(f'ACTION_RESULT success={success} msg="{msg}"', player.socket)
+            sendWithSize(f'ACTION_RESULT success={success} msg="{msg}"', player.socket, secure)
 
             if success:
                 self.end_turn()  # Move to the next turn after a successful action
 
-def sendWithSize(message, conn):
-    message = message.encode()
-    length = str(len(message)).zfill(8)
-    conn.sendall(length.encode() + message)
+def sendWithSize(message, conn, secure):
+    if isinstance(message, str):
+        message = message.encode()  # Convert string to bytes
+    elif not isinstance(message, bytes):
+        raise TypeError("Message must be str or bytes")
 
-def recvWithSize(conn):
-    length_data = conn.recv(8)
+    encrypted = secure.encrypt(message)  # Encrypt the message
+
+    length = str(len(encrypted)).zfill(8).encode()  # Send length of encrypted message
+    conn.sendall(length + encrypted)
+
+
+def recvWithSize(conn, secure):
+    length_data = conn.recv(8)  # Receive the length of the message
     if not length_data:
         return None
     try:
         length = int(length_data.decode().strip())
     except ValueError:
         return None
-    message = b""
-    while len(message) < length:
-        chunk = conn.recv(length - len(message))
+
+    encrypted_data = b""
+    while len(encrypted_data) < length:
+        chunk = conn.recv(length - len(encrypted_data))  # Receive the message chunk by chunk
         if not chunk:
             return None
-        message += chunk
-    return message.decode()
+        encrypted_data += chunk
+
+    decrypted = secure.decrypt(encrypted_data)
+
+    # Check the type before decoding
+    if isinstance(decrypted, str):
+        return decrypted
+    else:
+        return decrypted.decode()
+
+
+
 
 def checkPlayer(username,password,clients):
     users = {}
@@ -237,7 +256,7 @@ def create_empty_board():
     size = 6
     return [[None for _ in range(size)] for _ in range(size)]
 
-def cleanup_player(client_socket, player,rooms_lock,rooms,clients,clients_lock):
+def cleanup_player(client_socket, player,rooms_lock,rooms,clients,clients_lock, secure):
     if player.username:
         if player.room_id != None:
             with rooms_lock:
@@ -252,84 +271,85 @@ def cleanup_player(client_socket, player,rooms_lock,rooms,clients,clients_lock):
                         del rooms[room_id_to_delete]
                     else:
                         usernames = [p.username for p in room.players]
-                        sendWithSize(f"PLAYERS " + " ".join(usernames) + f" {room.started}", client_socket)
+                        sendWithSize(f"PLAYERS " + " ".join(usernames) + f" {room.started}", client_socket, secure)
         with clients_lock:
             clients.pop(client_socket)
 
-def cmdLogin(player,command,client_socket,clients):
+def cmdLogin(player,command,client_socket,clients, secure):
     username = command['args']['username']
     password = command['args']['password']
     if checkPlayer(username, password,clients):
         player.username = username
-        sendWithSize(f"LOGIN_SUCCESS username={username}", client_socket)
+        sendWithSize(f"LOGIN_SUCCESS username={username}", client_socket, secure)
     else:
-        sendWithSize('LOGIN_FAIL reason="Invalid password or username"', client_socket)
+        sendWithSize('LOGIN_FAIL reason="Invalid password or username"', client_socket, secure)
 
-def cmdRegister(player,command,client_socket):
+def cmdRegister(player,command,client_socket, secure):
     username = command['args']['username']
     password = command['args']['password']
     if savePlayer(username, password):
         player.username = username
-        sendWithSize(f"REGISTER_SUCCESS username={username}", client_socket)
+        sendWithSize(f"REGISTER_SUCCESS username={username}", client_socket, secure)
     else:
-        sendWithSize('REGISTER_FAIL reason="Username already exists"', client_socket)
+        sendWithSize('REGISTER_FAIL reason="Username already exists"', client_socket, secure)
 
-def cmdJoin(player,client_socket,rooms_lock,rooms):
+def cmdJoin(player,client_socket,rooms_lock,rooms, secure):
     with rooms_lock:
         for room in rooms.values():
             if not room.started:
                 room_id = room.room_id
                 room.add_player(player)
                 player.room_id = room_id
-                sendWithSize(f'ROOM_JOINED room_id={room_id} room_name=Room{room_id} players={len(room.players)}/4', client_socket)
+                sendWithSize(f'ROOM_JOINED room_id={room_id} room_name=Room{room_id} players={len(room.players)}/4', client_socket, secure)
                 break
         else:
-            sendWithSize('JOIN_FAIL reason="No room found"', client_socket)
+            sendWithSize('JOIN_FAIL reason="No room found"', client_socket, secure)
 
-def cmdCreate(player,client_socket,rooms_lock,rooms):
+def cmdCreate(player,client_socket,rooms_lock,rooms, secure):
     with rooms_lock:
         room_id = len(rooms)
         room_name = f'Room{room_id}'
         rooms[room_id] = GameRoom(room_id)
         rooms[room_id].add_player(player)
         player.room_id = room_id
-        sendWithSize(f'ROOM_CREATED room_id={room_id} room_name={room_name}', client_socket)
+        sendWithSize(f'ROOM_CREATED room_id={room_id} room_name={room_name}', client_socket, secure)
 
-def cmdView(client_socket,rooms_lock,rooms):
+def cmdView(client_socket,rooms_lock,rooms, secure):
     with rooms_lock:
         if not rooms:
-            sendWithSize("VIEW_ROOM_LIST", client_socket)
+            sendWithSize("VIEW_ROOM_LIST", client_socket, secure)
         else:
             room_list = []
             for room_id, room in rooms.items():
-                room_name = f"Room{room_id}"
-                player_count = len(room.players)
-                room_list.append(f"{room_id}={room_name}({player_count}/4)")
+                if not room.started:
+                    room_name = f"Room{room_id}"
+                    player_count = len(room.players)
+                    room_list.append(f"{room_id}={room_name}({player_count}/4)")
             response = "VIEW_ROOM_LIST " + " ".join(room_list)
-            sendWithSize(response, client_socket)
+            sendWithSize(response, client_socket, secure)
 
-def cmdCommands(player,command,rooms_lock,rooms):
+def cmdCommands(player,command,rooms_lock,rooms, secure):
     with rooms_lock:
         room = rooms.get(player.room_id)
     if room:
-        room.handle_command(player, command)
+        room.handle_command(player, command, secure)
 
-def cmdPlayers(player,client_socket,rooms_lock,rooms):
+def cmdPlayers(player,client_socket,rooms_lock,rooms, secure):
     with rooms_lock:
         room = rooms.get(player.room_id)
     if room:
         usernames = [p.username for p in room.players]
         response = "PLAYERS " + " ".join(usernames) + f" {room.started}"
-        sendWithSize(response, client_socket)
+        sendWithSize(response, client_socket, secure)
     else:
-        sendWithSize("PLAYERS", client_socket)
+        sendWithSize("PLAYERS", client_socket, secure)
 
-def cmdLeave(player,client_socket,rooms_lock,rooms):
+def cmdLeave(player,client_socket,rooms_lock,rooms, secure):
     with rooms_lock:
         room = rooms.get(player.room_id)
         if room:
             room.players.remove(player)
-            sendWithSize("LEAVE_SUCCESS", client_socket)
+            sendWithSize("LEAVE_SUCCESS", client_socket, secure)
             room_id_to_delete = player.room_id
             player.room_id = None
             player.is_alive = True
@@ -338,33 +358,31 @@ def cmdLeave(player,client_socket,rooms_lock,rooms):
                 del rooms[room_id_to_delete]
             else:
                 usernames = [p.username for p in room.players]
-                sendWithSize(f"PLAYERS " + " ".join(usernames) + f" {room.started}", client_socket)
         else:
-            sendWithSize('LEAVE_FAIL reason="Not in a room."', client_socket)
+            sendWithSize('LEAVE_FAIL reason="Not in a room."', client_socket, secure)
 
-def cmdStart(player,client_socket,rooms_lock,rooms):
+def cmdStart(player,client_socket,rooms_lock,rooms, secure):
     with rooms_lock:
         room = rooms.get(player.room_id)
     if room:
         with room.lock:
             if room.started:
-                sendWithSize("START_FAIL reason='Game already started'", client_socket)
+                sendWithSize("START_FAIL reason='Game already started'", client_socket, secure)
             elif len(room.players) < 2:
-                sendWithSize("START_FAIL reason='Not enough players to start the game'", client_socket)
+                sendWithSize("START_FAIL reason='Not enough players to start the game'", client_socket, secure)
             else:
                 room.started = True
                 start_message = "The game has started!"
-                for p in room.players:
-                    sendWithSize(f"STARTING msg='{start_message}'", p.socket)
+                sendWithSize(f"STARTING msg='{start_message}'", client_socket, secure)
                 
                 room.start_turn()
     else:
-        sendWithSize("START_FAIL reason='Player not in a room'", client_socket)
+        sendWithSize("START_FAIL reason='Player not in a room'", client_socket, secure)
 
-def cmdUsername(player,client_socket):
-    sendWithSize(f"USERNAME_SUCCESS {player.username}",client_socket)
+def cmdUsername(player,client_socket, secure):
+    sendWithSize(f"USERNAME_SUCCESS {player.username}",client_socket, secure)
 
-def cmdPosition(player,client_socket,rooms):
+def cmdPosition(player,client_socket,rooms, secure):
 
     board = rooms[player.room_id].board
     x = random.randint(0, 5)
@@ -378,19 +396,19 @@ def cmdPosition(player,client_socket,rooms):
 
     board[player.position[1]][player.position[0]] = player
     
-    sendWithSize(f"POSITION_SUCCESS {player.position[0]} {player.position[1]}",client_socket)
+    sendWithSize(f"POSITION_SUCCESS {player.position[0]} {player.position[1]}",client_socket, secure)
 
-def cmdStatus(player, client_socket, rooms_lock, rooms):
+def cmdStatus(player, client_socket, rooms_lock, rooms, secure):
     with rooms_lock:
         room = rooms.get(player.room_id)
     if room:
         with room.lock:
-            room.broadcast_game_state(client_socket)
+            room.broadcast_game_state(client_socket, secure)
 
-def cmdChat(player,msg,client_socket, rooms_lock, rooms):
+def cmdChat(player,msg,client_socket, rooms_lock, rooms, secure):
     with rooms_lock:
         room = rooms.get(player.room_id)
     if room:
         with room.lock:
-            sendWithSize("CHAT_SUCCESS",client_socket)
+            sendWithSize("CHAT_SUCCESS",client_socket, secure)
             room.add_chat_message(player,msg)

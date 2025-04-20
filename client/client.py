@@ -6,26 +6,26 @@ import pygame
 import sys
 import threading
 import queue
+from KeyExchange import DiffieHellmanChannel, RSAChannel
 
 
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client_socket.connect(('127.0.0.1', 5050))
+
 
 username = None
 
 # ---------- GUI Screens ----------
 
-def login_screen():
+def login_screen(secure):
     def doLogin():
         u = username_entry.get()
         p = password_entry.get()
-        response = send_command(f"LOGIN username={u} password={p}",client_socket)
+        response = send_command(f"LOGIN username={u} password={p}",client_socket, secure)
         if response.startswith("LOGIN_SUCCESS"):
             global username
             username = u
             #messagebox.showinfo("Login", "Login successful!")
             window.destroy()
-            main_menu()
+            main_menu(secure)
         else:
             messagebox.showerror("Login Failed", response)
 
@@ -39,20 +39,20 @@ def login_screen():
     password_entry = tk.Entry(window, show="*")
     password_entry.pack()
     tk.Button(window, text="Login", command=doLogin).pack()
-    tk.Button(window, text="Register", command=lambda:[window.destroy(), register_screen()]).pack()
+    tk.Button(window, text="Register", command=lambda:[window.destroy(), register_screen(secure)]).pack()
     window.mainloop()
 
-def register_screen():
+def register_screen(secure):
     def doRegister():
         u = username_entry.get()
         p = password_entry.get()
-        response = send_command(f"REGISTER username={u} password={p}",client_socket)
+        response = send_command(f"REGISTER username={u} password={p}",client_socket, secure)
         if response.startswith("REGISTER_SUCCESS"):
             global username
             username = u
             #messagebox.showinfo("Registration", "Registered successfully!")
             window.destroy()
-            main_menu()
+            main_menu(secure)
         else:
             messagebox.showerror("Registration Failed", response)
 
@@ -66,32 +66,32 @@ def register_screen():
     password_entry = tk.Entry(window, show="*")
     password_entry.pack()
     tk.Button(window, text="Register", command=doRegister).pack()
-    tk.Button(window, text="Back to Login", command=lambda:[window.destroy(), login_screen()]).pack()
+    tk.Button(window, text="Back to Login", command=lambda:[window.destroy(), login_screen(secure)]).pack()
     window.mainloop()
 
-def main_menu():
+def main_menu(secure):
     def join_game():
-        response = send_command("JOIN",client_socket)
+        response = send_command("JOIN",client_socket, secure)
         command = parse_command(response)
         if command['type'] == "ROOM_JOINED":
             #messagebox.showinfo("Join", response)
             menu.destroy()
-            lobby_screen(room_info=command['args']['room_name'])
+            lobby_screen(secure, room_info=command['args']['room_name'])
         else:
             messagebox.showerror("Join Failed", response)
 
     def create_game():
-        response = send_command("CREATE",client_socket)
+        response = send_command("CREATE",client_socket, secure)
         command = parse_command(response)
         if command['type'] =="ROOM_CREATED":
             #messagebox.showinfo("Room", response)
             menu.destroy()
-            lobby_screen(room_info=command['args']['room_name'],is_host=True)
+            lobby_screen(secure, room_info=command['args']['room_name'],is_host=True)
         else:
             messagebox.showerror("Create Failed", response)
 
     def view_rooms():
-        response = send_command("VIEW",client_socket)
+        response = send_command("VIEW",client_socket, secure)
         messagebox.showinfo("Available Rooms", response)
 
     menu = tk.Tk()
@@ -103,7 +103,7 @@ def main_menu():
     tk.Button(menu, text="View Rooms", command=view_rooms).pack()
     menu.mainloop()
 
-def lobby_screen(room_info="Room Info", players=None, is_host=False):
+def lobby_screen(secure, room_info="Room Info", players=None, is_host=False):
     if players is None:
         players = []
 
@@ -134,8 +134,7 @@ def lobby_screen(room_info="Room Info", players=None, is_host=False):
             if not players_label.winfo_exists():
                 return  # Lobby closed
             
-            sendWithSize("PLAYERS", client_socket)
-            players_response = recvWithSize(client_socket)
+            players_response = send_command("PLAYERS", client_socket, secure)
 
             if players_response.startswith("PLAYERS"):
                 players = players_response.split()[1:-1]
@@ -152,8 +151,8 @@ def lobby_screen(room_info="Room Info", players=None, is_host=False):
 
                 if starting.startswith("True"):
                     lobby.destroy()
-                    username = send_command(f"USERNAME",client_socket)
-                    launch_game(client_socket,username.split()[1])
+                    username = send_command(f"USERNAME",client_socket, secure)
+                    launch_game(client_socket,username.split()[1], secure)
                     return
                 
             players_label.after(1000, update_players)
@@ -163,16 +162,16 @@ def lobby_screen(room_info="Room Info", players=None, is_host=False):
             return
 
     def start_game_pressed():
-        response = send_command("START",client_socket)
+        response = send_command("START",client_socket, secure)
 
         if not response.startswith("STARTING"):
             messagebox.showerror("Start Failed", response)
 
     def leave_room():
-        response = send_command("LEAVE",client_socket)
+        response = send_command("LEAVE",client_socket, secure)
         if response.startswith("LEAVE_SUCCESS"):
             on_close()
-            main_menu()
+            main_menu(secure)
         else:
             messagebox.showerror("Leave Failed", response)
 
@@ -187,7 +186,7 @@ status_queue = queue.Queue()
 your_turn = threading.Event()  # This will be cleared when it's NOT your turn
 
 
-def launch_game(client_socket, username):
+def launch_game(client_socket, username, secure):
     pygame.init()
     game_running = True
 
@@ -208,7 +207,7 @@ def launch_game(client_socket, username):
     turn_text_surface = None
     players_text_surface = None
 
-    pos = send_command("POSITION", client_socket).split()
+    pos = send_command("POSITION", client_socket, secure).split()
     player_pos = [int(pos[1]), int(pos[2])]
 
     BG_COLOR = (30, 30, 30)
@@ -237,8 +236,7 @@ def launch_game(client_socket, username):
     def check_status():
         nonlocal turn_text_surface, players_text_surface, is_alive, won
 
-        response = send_command("STATUS", client_socket)
-
+        response = send_command("STATUS", client_socket, secure)
         if response.startswith("STATUS"):
             parts = response.split("|")
             status_part = parts[0].strip()
@@ -313,7 +311,7 @@ def launch_game(client_socket, username):
 
     def send_chat_message(message):
         if message:  # Ensure the message is not empty
-            response = send_command(f"CHAT msg={message}", client_socket)
+            response = send_command(f"CHAT msg={message}", client_socket, secure)
             if response.startswith("CHAT_SUCCESS"):
                 print(f"Message sent: {message}")
             else:
@@ -375,23 +373,22 @@ def launch_game(client_socket, username):
                 game_running = False
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                 if not is_alive or won:
-                    continue
-                elif event.type == pygame.MOUSEBUTTONDOWN:
                     if chat_input_box.collidepoint(event.pos):
                         typing_in_chat = True
                     else:
                         typing_in_chat = False
+                    continue
                 for rect, action in buttons:
                     if rect.collidepoint(event.pos):
                         match action:
                             case a if a in ("SCAN", "HACK"):
                                 if gx >= 0 and gy >= 0:
-                                    response = send_command(f"{a} x={gx} y={gy}", client_socket)
+                                    response = send_command(f"{a} x={gx} y={gy}", client_socket, secure)
                                     parsed = parse_command(response)
                                     msg = response[response.find("msg=") + 4:]
                                     log(msg)
                             case "ENCRYPT" | "EVADE":
-                                response = send_command(action, client_socket)
+                                response = send_command(action, client_socket, secure)
                                 parsed = parse_command(response)
                                 msg = response[response.find("msg=") + 4:]
                                 log(msg)
@@ -444,11 +441,17 @@ def launch_game(client_socket, username):
 
         pygame.display.flip()
     
-    response = send_command("LEAVE",client_socket)
+    response = send_command("LEAVE",client_socket, secure)
     client_socket.close()
     pygame.quit()
     sys.exit()
 
-
-# Start with login screen
-login_screen()
+if __name__ == "__main__":
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client_socket.connect(('127.0.0.1', 5050))
+    secure = DiffieHellmanChannel()
+    server_pub = int(client_socket.recv(4096).decode())
+    client_socket.send(str(secure.public).encode())
+    secure.generate_shared_key(server_pub)
+    # Start with login screen
+    login_screen(secure)
