@@ -60,6 +60,8 @@ def handle_client(client_socket, addr):
                     cmdChat(player, msg[msg.find("msg=")+4:], client_socket, rooms_lock, rooms, secure)
                 case 'CREATE_BOT':
                     cmdBot(player,client_socket,rooms_lock,rooms, secure)
+                case 'LEADERBOARD':
+                    cmdLeaderboard(client_socket, secure)
 
 
     except Exception as e:

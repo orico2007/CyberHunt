@@ -3,7 +3,11 @@ import os
 import random
 import threading
 import time
+import hashlib
+import base64
+import secrets
 
+PEPPER = "my_secret_pepper_123!"
 USERS_FILE = "server/users.json"
 #USERS_FILE = "users.json"
 
@@ -120,6 +124,7 @@ class GameRoom:
         self.GRID_SIZE = 6
         self.chat_messages = []  # Store chat messages
         self.chat_lock = threading.Lock()  # Lock for chat messages
+        self.game_over = False
     
     def broadcast_game_state(self, client_socket, secure):
         # Broadcast alive/dead status
@@ -137,6 +142,10 @@ class GameRoom:
         if len(alive_players) == 1:
             winner = alive_players[0]
             winner_msg += f"username={winner.username}"
+            if not winner.is_bot and not self.game_over:
+                increment_win_count(winner.username)
+            self.game_over = True 
+
         
         # Broadcast the chat messages every 0.5 seconds
         chat_msg = "|CHAT "
@@ -302,36 +311,69 @@ def recvWithSize(conn, secure):
     else:
         return decrypted.decode()
 
-def checkPlayer(username,password,clients):
-    users = {}
-
+def increment_win_count(username):
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE, "r") as f:
             users = json.load(f)
 
-    if username in users and users[username] == password:
-        for player in clients.values():
-            if player.username == username:
-                return False
-        return True
-    else:
-        return False
+        if username in users:
+            users[username]["wins"] = users[username].get("wins", 0) + 1
 
-def savePlayer(username,password):
-    users = {}
+        with open(USERS_FILE, "w") as f:
+            json.dump(users, f, indent=4)
 
+def load_users():
     if os.path.exists(USERS_FILE):
         with open(USERS_FILE, "r") as f:
-            users = json.load(f)
+            return json.load(f)
+    return {}
 
-    if username in users:
-        return False
-
-    users[username] = password
+def save_users(users):
     with open(USERS_FILE, "w") as f:
-        json.dump(users, f)
+        json.dump(users, f, indent=4)
+
+def hash_password(password, salt):
+    return hashlib.sha256((password + PEPPER + salt).encode()).hexdigest()
+
+def checkPlayer(username, password, clients):
+    users = load_users()
+
+    if username not in users:
+        return False
+
+    stored_salt = users[username]["salt"]
+    stored_hash = users[username]["password"]
+    provided_hash = hash_password(password, stored_salt)
+
+    # Compare hashed password
+    if stored_hash != provided_hash:
+        return False
+
+    # Check if player is already connected
+    for player in clients.values():
+        if player.username == username:
+            return False
 
     return True
+
+def savePlayer(username, password):
+    users = load_users()
+
+    if username in users:
+        return False  # Username already taken
+
+    salt = secrets.token_hex(16)  # 32-character random hex salt
+    hashed_password = hash_password(password, salt)
+
+    users[username] = {
+        "password": hashed_password,
+        "salt": salt,
+        "wins": 0
+    }
+
+    save_users(users)
+    return True
+
 
 def parse_command(msg):
     parts = msg.strip().split()
@@ -523,6 +565,38 @@ def cmdBot(player,client_socket,rooms_lock,rooms, secure):
         rooms[room_id].add_player(bot3)
         player.room_id = room_id
         sendWithSize(f'CREATE_BOT room_id={room_id} room_name={room_name}', client_socket, secure)
+
+
+
+def cmdLeaderboard(client_socket, secure):
+    try:
+        with open(USERS_FILE, "r") as f:
+            users = json.load(f)
+
+        leaderboard_data = sorted(
+            [
+                {"username": username, "wins": info.get("wins", 0)}
+                for username, info in users.items()
+                if not info.get("is_bot", False)  # Skip bots if you're tagging them
+            ],
+            key=lambda x: x["wins"],
+            reverse=True
+        )
+
+        response = "LEADERBOARD "
+
+        for user in leaderboard_data:
+            response += f"{user['username']}:{user['wins']} "
+        
+
+        sendWithSize(json.dumps(response), client_socket, secure)
+
+    except Exception as e:
+        error_response = {
+            "type": "ERROR",
+            "message": f"Failed to get leaderboard: {str(e)}"
+        }
+        sendWithSize(json.dumps(error_response), client_socket, secure)
 
 
 

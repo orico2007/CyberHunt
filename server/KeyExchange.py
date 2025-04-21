@@ -21,8 +21,6 @@ class DiffieHellmanChannel:
         sha.update(str(shared_secret).encode())
         self.shared_key = sha.digest()[:16]  # Use only the first 16 bytes (AES-128)
 
-        print(f"Shared key generated: {self.shared_key.hex()}")  # Log shared key (in hex)
-
     def encrypt(self, message):
         if isinstance(message, str):
             message_bytes = message.encode()  # Convert string to bytes

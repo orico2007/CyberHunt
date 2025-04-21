@@ -103,6 +103,15 @@ def main_menu(secure):
         else:
             messagebox.showerror("Create Failed", response)
 
+    def view_leaderboard():
+        response = send_command("LEADERBOARD", client_socket, secure)
+        print(response)
+        if response.startswith('"LEADERBOARD'):
+            players = response.split()[1:-1]  # Exclude the LEADERBOARD keyword
+            leaderboard_window(players)
+        else:
+            messagebox.showerror("Leaderboard Error", "Unable to retrieve leaderboard")
+
     menu = tk.Tk()
     menu.title("Cyber Hunt - Main Menu")
     menu.geometry("400x300")
@@ -111,7 +120,27 @@ def main_menu(secure):
     tk.Button(menu, text="Create Room", command=create_game).pack()
     tk.Button(menu, text="View Rooms", command=view_rooms).pack()
     tk.Button(menu, text="Bot Game", command=bot_game).pack()
+    tk.Button(menu, text="Leaderboard", command=view_leaderboard).pack()
+
     menu.mainloop()
+
+def leaderboard_window(players):
+    leaderboard_win = tk.Toplevel()  # Create a new window for leaderboard
+    leaderboard_win.title("Leaderboard")
+    leaderboard_win.geometry("300x300")
+
+    tk.Label(leaderboard_win, text="Leaderboard", font=("Arial", 16, "bold")).pack(pady=10)
+
+    leaderboard_listbox = tk.Listbox(leaderboard_win, height=10, width=30)
+    leaderboard_listbox.pack(pady=10)
+
+    # Add players to the listbox
+    for player in players:
+        leaderboard_listbox.insert(tk.END, player)
+
+    leaderboard_win.mainloop()
+
+
 
 def lobby_screen(secure, room_info="Room Info", players=None, is_host=False):
     if players is None:
@@ -323,7 +352,8 @@ def launch_game(client_socket, username, secure):
         if message:  # Ensure the message is not empty
             response = send_command(f"CHAT msg={message}", client_socket, secure)
             if response.startswith("CHAT_SUCCESS"):
-                print(f"Message sent: {message}")
+                #print(f"Message sent: {message}")
+                pass
             else:
                 print(f"Failed to send message: {response}")
 

@@ -57,6 +57,8 @@ def send_command(cmd, client_socket, secure):
         while not returnedP["type"].startswith("ACTION_RESULT"):
             returned = recvWithSize(client_socket, secure)
             returnedP = parse_command(returned)
+    elif cmdType == "LEADERBOARD":
+        return returned
     else:
         while not cmdType in returnedP["type"]:
             returned = recvWithSize(client_socket, secure)
