@@ -74,7 +74,6 @@ def main_menu(secure):
         response = send_command("JOIN",client_socket, secure)
         command = parse_command(response)
         if command['type'] == "ROOM_JOINED":
-            #messagebox.showinfo("Join", response)
             menu.destroy()
             lobby_screen(secure, room_info=command['args']['room_name'])
         else:
@@ -84,7 +83,6 @@ def main_menu(secure):
         response = send_command("CREATE",client_socket, secure)
         command = parse_command(response)
         if command['type'] =="ROOM_CREATED":
-            #messagebox.showinfo("Room", response)
             menu.destroy()
             lobby_screen(secure, room_info=command['args']['room_name'],is_host=True)
         else:
@@ -94,6 +92,17 @@ def main_menu(secure):
         response = send_command("VIEW",client_socket, secure)
         messagebox.showinfo("Available Rooms", response)
 
+    def bot_game():
+        response = send_command("CREATE_BOT", client_socket, secure)
+        command = parse_command(response)
+        if command['type'] == "CREATE_BOT":
+            # Optionally skip lobby and go straight to game
+            menu.destroy()
+            username = send_command("USERNAME", client_socket, secure).split()[1]
+            launch_game(client_socket, username, secure)
+        else:
+            messagebox.showerror("Create Failed", response)
+
     menu = tk.Tk()
     menu.title("Cyber Hunt - Main Menu")
     menu.geometry("400x300")
@@ -101,6 +110,7 @@ def main_menu(secure):
     tk.Button(menu, text="Join Room", command=join_game).pack()
     tk.Button(menu, text="Create Room", command=create_game).pack()
     tk.Button(menu, text="View Rooms", command=view_rooms).pack()
+    tk.Button(menu, text="Bot Game", command=bot_game).pack()
     menu.mainloop()
 
 def lobby_screen(secure, room_info="Room Info", players=None, is_host=False):

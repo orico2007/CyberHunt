@@ -2,8 +2,10 @@ import json
 import os
 import random
 import threading
+import time
 
 USERS_FILE = "server/users.json"
+#USERS_FILE = "users.json"
 
 class Player:
     def __init__(self, socket, address, username=None):
@@ -16,6 +18,24 @@ class Player:
         self.last_action = None
         self.encrypted = False
         self.turn_ready = False
+        self.is_bot = False
+
+class FakeSocket:
+    def __init__(self, bot_name):
+        self.bot_name = bot_name
+        self.buffer = []
+
+    def sendall(self, data):
+        print(f"[{self.bot_name}] BOT RECEIVED:", data.decode(errors='ignore'))  # Optional debug
+
+    def recv(self, buffer_size):
+        return b''  # Bots don’t receive data, but you can extend this to simulate input
+
+class DummySecure:
+    def encrypt(self, data):
+        return data
+    def decrypt(self, data):
+        return data
 
 def gameScan(args, player, GRID_SIZE, players):
     x, y = int(args['x']), int(args['y'])
@@ -59,6 +79,35 @@ def gameEncrypt(player):
 
     return (msg,success)
 
+def bot_decide_action(bot, room):
+    """Returns a command dictionary: {'type': 'SCAN', 'args': {'x': 2, 'y': 3}}"""
+    grid_size = room.GRID_SIZE
+
+    if not bot.is_alive:
+        return None
+
+    # Get bot's current position
+    x, y = bot.position
+
+    scan_x = x
+    scan_y = y
+
+    while scan_x == x and scan_y == y:
+        scan_x = max(0, min(grid_size - 1, x + random.choice([-1, 0, 1])))
+        scan_y = max(0, min(grid_size - 1, y + random.choice([-1, 0, 1])))
+
+    if random.random() < 0.3:
+        return {'type': 'HACK', 'args': {'x': scan_x, 'y': scan_y}}
+
+    if random.random() < 0.5:
+        return {'type': 'SCAN', 'args': {'x': scan_x, 'y': scan_y}}
+
+    if random.random() < 0.2:
+        return {'type': 'ENCRYPT'}
+
+    return {'type': 'EVADE'}
+
+
 class GameRoom:
     def __init__(self, room_id):
         self.room_id = room_id
@@ -88,7 +137,6 @@ class GameRoom:
         if len(alive_players) == 1:
             winner = alive_players[0]
             winner_msg += f"username={winner.username}"
-            #self.started = False  # Stop the game
         
         # Broadcast the chat messages every 0.5 seconds
         chat_msg = "|CHAT "
@@ -96,8 +144,6 @@ class GameRoom:
 
         sendWithSize(f"{status_msg}{current_turn_msg}{winner_msg}{chat_msg}", client_socket, secure)
 
-        
-    
     def add_chat_message(self,player, message):
         with self.chat_lock:
             if len(self.chat_messages) >= 4:
@@ -121,12 +167,27 @@ class GameRoom:
                     player.position = (x, y)
                     break
 
+
+    def bot_take_turn(self, bot_player):
+        time.sleep(1)  # Simulate thinking time
+
+        command = bot_decide_action(bot_player, self)
+        if command:
+            self.handle_command(bot_player, command, DummySecure())
+
+    
     def start_turn(self):
-        # Start the turn for the current player
         while not self.players[self.turn_index].is_alive:
             self.turn_index = (self.turn_index + 1) % len(self.players)
+
         current_player = self.players[self.turn_index]
         current_player.turn_ready = True
+
+        # If it's a bot, give them a short delay and let them act
+        if current_player.is_bot:
+            threading.Thread(target=self.bot_take_turn, args=(current_player,), daemon=True).start()
+
+
 
     def end_turn(self):
         # End the current player's turn and start the next player's turn
@@ -169,6 +230,41 @@ class GameRoom:
 
             if success:
                 self.end_turn()  # Move to the next turn after a successful action
+    
+    def handle_bot_turn(self, player):
+        if not player.is_alive:
+            return
+
+        action = random.choice(["SCAN", "HACK", "EVADE", "ENCRYPT"])
+        args = {}
+
+        if action in ["SCAN", "HACK"]:
+            # Random coordinate
+            args['x'] = str(random.randint(0, self.GRID_SIZE - 1))
+            args['y'] = str(random.randint(0, self.GRID_SIZE - 1))
+
+        msg = ""
+        success = False
+
+        player.encrypted = False  # Bots get decrypted at the start too
+
+        if action == "SCAN":
+            msg, success = gameScan(args, player, self.GRID_SIZE, self.players)
+        elif action == "HACK":
+            msg, success = gameHack(args, player, self.players)
+        elif action == "EVADE":
+            msg, success = gameEvade(player, self.board)
+        elif action == "ENCRYPT":
+            msg, success = gameEncrypt(player)
+
+        # Log the bot's action
+        print(f"Bot {player.username} performed {action}: {msg}")
+        self.actions_log.append(f"Bot {player.username} performed {action}: {msg}")
+
+        # Advance turn only if successful
+        if success:
+            self.end_turn()
+
 
 def sendWithSize(message, conn, secure):
     if isinstance(message, str):
@@ -205,9 +301,6 @@ def recvWithSize(conn, secure):
         return decrypted
     else:
         return decrypted.decode()
-
-
-
 
 def checkPlayer(username,password,clients):
     users = {}
@@ -412,3 +505,24 @@ def cmdChat(player,msg,client_socket, rooms_lock, rooms, secure):
         with room.lock:
             sendWithSize("CHAT_SUCCESS",client_socket, secure)
             room.add_chat_message(player,msg)
+
+def cmdBot(player,client_socket,rooms_lock,rooms, secure):
+    with rooms_lock:
+        bot1 = Player(FakeSocket("Bot1"), None, "BOT1")
+        bot2 = Player(FakeSocket("Bot2"), None, "BOT2")
+        bot3 = Player(FakeSocket("Bot3"), None, "BOT3")
+        bot1.is_bot = True
+        bot2.is_bot = True
+        bot3.is_bot = True
+        room_id = len(rooms)
+        room_name = f'Room{room_id}'
+        rooms[room_id] = GameRoom(room_id)
+        rooms[room_id].add_player(player)
+        rooms[room_id].add_player(bot1)
+        rooms[room_id].add_player(bot2)
+        rooms[room_id].add_player(bot3)
+        player.room_id = room_id
+        sendWithSize(f'CREATE_BOT room_id={room_id} room_name={room_name}', client_socket, secure)
+
+
+

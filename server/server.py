@@ -28,6 +28,7 @@ def handle_client(client_socket, addr):
             msg = recvWithSize(client_socket, secure)
             if msg is None:
                 print(f"[DISCONNECT] {addr} disconnected unexpectedly.")
+                cleanup_player(client_socket,player,rooms_lock,rooms,clients,clients_lock, secure)
                 break
             command = parse_command(msg)
             match command['type']:
@@ -57,6 +58,8 @@ def handle_client(client_socket, addr):
                     cmdStatus(player, client_socket, rooms_lock, rooms, secure)
                 case 'CHAT':
                     cmdChat(player, msg[msg.find("msg=")+4:], client_socket, rooms_lock, rooms, secure)
+                case 'CREATE_BOT':
+                    cmdBot(player,client_socket,rooms_lock,rooms, secure)
 
 
     except Exception as e:
