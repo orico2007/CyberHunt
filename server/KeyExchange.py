@@ -15,36 +15,33 @@ class DiffieHellmanChannel:
         self.shared_key = None
 
     def generate_shared_key(self, other_public):
-        # Compute the shared secret using the other party's public key
         shared_secret = pow(other_public, self.private, PRIME)
         sha = SHA256.new()
         sha.update(str(shared_secret).encode())
-        self.shared_key = sha.digest()[:16]  # Use only the first 16 bytes (AES-128)
+        self.shared_key = sha.digest()[:16]
 
     def encrypt(self, message):
         if isinstance(message, str):
-            message_bytes = message.encode()  # Convert string to bytes
+            message_bytes = message.encode()
         elif isinstance(message, bytes):
-            message_bytes = message  # Message is already in bytes
+            message_bytes = message
         else:
             raise TypeError("Message must be a string or bytes")
 
-        # Pad the message to a 16-byte boundary
-        padded_message = pad(message_bytes, AES.block_size)  # Pad to a multiple of 16 bytes
-        iv = get_random_bytes(AES.block_size)  # Generate a random IV
+        padded_message = pad(message_bytes, AES.block_size)
+        iv = get_random_bytes(AES.block_size)
         
         cipher = AES.new(self.shared_key, AES.MODE_CBC, iv)
-        encrypted_message = cipher.encrypt(padded_message)  # Encrypt the padded message
-        return iv + encrypted_message  # Return IV + encrypted message
+        encrypted_message = cipher.encrypt(padded_message)
+        return iv + encrypted_message
 
     def decrypt(self, encrypted_message):
-        iv = encrypted_message[:AES.block_size]  # Extract the IV from the beginning
-        ciphertext = encrypted_message[AES.block_size:]  # Extract the ciphertext
+        iv = encrypted_message[:AES.block_size]
+        ciphertext = encrypted_message[AES.block_size:]
 
         cipher = AES.new(self.shared_key, AES.MODE_CBC, iv)
-        decrypted_message = unpad(cipher.decrypt(ciphertext), AES.block_size)  # Unpad after decryption
-        return decrypted_message.decode()  # Convert bytes back to string
-
+        decrypted_message = unpad(cipher.decrypt(ciphertext), AES.block_size)
+        return decrypted_message.decode()
 
 class RSAChannel:
     def __init__(self):
@@ -62,7 +59,7 @@ class RSAChannel:
     def encrypt(self, plaintext):
         if isinstance(plaintext, str):
             plaintext = plaintext.encode()
-        return self.cipher.encrypt(plaintext)  # returns bytes
+        return self.cipher.encrypt(plaintext)
 
     def decrypt(self, data):
         cipher = PKCS1_OAEP.new(self.private_key)

@@ -9,11 +9,7 @@ import queue
 from KeyExchange import DiffieHellmanChannel, RSAChannel
 
 
-
-
 username = None
-
-# ---------- GUI Screens ----------
 
 def login_screen(secure):
     def doLogin():
@@ -23,7 +19,6 @@ def login_screen(secure):
         if response.startswith("LOGIN_SUCCESS"):
             global username
             username = u
-            #messagebox.showinfo("Login", "Login successful!")
             window.destroy()
             main_menu(secure)
         else:
@@ -50,7 +45,6 @@ def register_screen(secure):
         if response.startswith("REGISTER_SUCCESS"):
             global username
             username = u
-            #messagebox.showinfo("Registration", "Registered successfully!")
             window.destroy()
             main_menu(secure)
         else:
@@ -107,7 +101,7 @@ def main_menu(secure):
         response = send_command("LEADERBOARD", client_socket, secure)
         print(response)
         if response.startswith('"LEADERBOARD'):
-            players = response.split()[1:-1]  # Exclude the LEADERBOARD keyword
+            players = response.split()[1:-1]
             leaderboard_window(players)
         else:
             messagebox.showerror("Leaderboard Error", "Unable to retrieve leaderboard")
@@ -125,7 +119,7 @@ def main_menu(secure):
     menu.mainloop()
 
 def leaderboard_window(players):
-    leaderboard_win = tk.Toplevel()  # Create a new window for leaderboard
+    leaderboard_win = tk.Toplevel()
     leaderboard_win.title("Leaderboard")
     leaderboard_win.geometry("300x300")
 
@@ -134,13 +128,10 @@ def leaderboard_window(players):
     leaderboard_listbox = tk.Listbox(leaderboard_win, height=10, width=30)
     leaderboard_listbox.pack(pady=10)
 
-    # Add players to the listbox
     for player in players:
         leaderboard_listbox.insert(tk.END, player)
 
     leaderboard_win.mainloop()
-
-
 
 def lobby_screen(secure, room_info="Room Info", players=None, is_host=False):
     if players is None:
@@ -171,7 +162,7 @@ def lobby_screen(secure, room_info="Room Info", players=None, is_host=False):
     def update_players():
         try:
             if not players_label.winfo_exists():
-                return  # Lobby closed
+                return
             
             players_response = send_command("PLAYERS", client_socket, secure)
 
@@ -179,7 +170,6 @@ def lobby_screen(secure, room_info="Room Info", players=None, is_host=False):
                 players = players_response.split()[1:-1]
                 starting = players_response.split()[-1]
 
-                # Clear only the player list part
                 for widget in player_list_frame.winfo_children():
                     widget.destroy()
 
@@ -222,7 +212,7 @@ def lobby_screen(secure, room_info="Room Info", players=None, is_host=False):
     lobby.mainloop()
 
 status_queue = queue.Queue()
-your_turn = threading.Event()  # This will be cleared when it's NOT your turn
+your_turn = threading.Event()
 
 
 def launch_game(client_socket, username, secure):
@@ -262,10 +252,10 @@ def launch_game(client_socket, username, secure):
     gx, gy = -1, -1
     is_alive = True
     won = False
-    messages = []  # List of game log messages
+    messages = []
 
-    chat_input_box = pygame.Rect(500, 500, 200, 50)  # Chat input area
-    chat_message_list = []  # To hold the chat messages
+    chat_input_box = pygame.Rect(500, 500, 200, 50)
+    chat_message_list = []
 
     def log(msg):
         messages.append(msg)
@@ -283,17 +273,14 @@ def launch_game(client_socket, username, secure):
             winner_part = parts[2].strip()
             chat_part = parts[3].strip()
 
-            # Parse player statuses
             player_statuses = status_part[len("STATUS "):].split()
             player_status_dict = {}
             for entry in player_statuses:
                 name, state = entry.split("=")
                 player_status_dict[name] = state
 
-            # Check your own status
             is_alive = player_status_dict.get(username, "DEAD") == "ALIVE"
 
-            # Update players_text_surface with all players
             player_lines = []
             for name, state in player_status_dict.items():
                 status_text = f"{name}: {'✅ ALIVE' if state == 'ALIVE' else 'DEAD'}"
@@ -301,7 +288,6 @@ def launch_game(client_socket, username, secure):
             
             players_text_surface = [small_font.render(line, True, (0, 255, 0) if "ALIVE" in line else (255, 0, 0)) for line in player_lines]
 
-            # Check turn info
             current_turn = ""
             if turn_part.startswith("TURN"):
                 parts = turn_part.split()
@@ -316,8 +302,6 @@ def launch_game(client_socket, username, secure):
             else:
                 turn_text_surface = font.render(f"Current Turn: {current_turn}", True, (255, 255, 255))
 
-
-            # Win check
             if winner_part.startswith("WINNER"):
                 try:
                     winner_name = winner_part.split("=")[1]
@@ -328,7 +312,6 @@ def launch_game(client_socket, username, secure):
                         is_alive = False
                         log(f"{winner_name} won the game.")
                 except Exception as e:
-                    #no username
                     pass
             
             if chat_part.startswith("CHAT"):
@@ -338,21 +321,17 @@ def launch_game(client_socket, username, secure):
                     chat_message_list.clear()
                     chat_message_list.extend(m)
                 except Exception as e:
-                    #no messages
                     pass
-
-                
 
     status_check_timer = 0
 
     chat_input_text = ""
-    typing_in_chat = False  # Keep track of whether the user is typing in the chat box
+    typing_in_chat = False
 
     def send_chat_message(message):
-        if message:  # Ensure the message is not empty
+        if message:
             response = send_command(f"CHAT msg={message}", client_socket, secure)
             if response.startswith("CHAT_SUCCESS"):
-                #print(f"Message sent: {message}")
                 pass
             else:
                 print(f"Failed to send message: {response}")
@@ -361,7 +340,6 @@ def launch_game(client_socket, username, secure):
     while game_running:
         screen.fill(BG_COLOR)
 
-        # Draw Grid
         for row in range(grid_size):
             for col in range(grid_size):
                 rect = pygame.Rect(
@@ -372,7 +350,6 @@ def launch_game(client_socket, username, secure):
                 )
                 pygame.draw.rect(screen, GRID_COLOR, rect, 1)
 
-        # Player block
         player_rect = pygame.Rect(
             grid_origin[0] + player_pos[0] * cell_size,
             grid_origin[1] + player_pos[1] * cell_size,
@@ -381,30 +358,25 @@ def launch_game(client_socket, username, secure):
         )
         pygame.draw.rect(screen, PLAYER_COLOR, player_rect)
 
-        # Buttons
         mouse_pos = pygame.mouse.get_pos()
         for rect, action in buttons:
             pygame.draw.rect(screen, BUTTON_HOVER if rect.collidepoint(mouse_pos) else BUTTON_COLOR, rect)
             screen.blit(font.render(action, True, TEXT_COLOR), (rect.x + 10, rect.y + 10))
 
-        # Click info
         if click_display_pos and click_grid_coords:
             cx = min(click_display_pos[0], screen_width - 50)
             cy = min(click_display_pos[1], screen_height - 20)
             screen.blit(font.render(f"({click_grid_coords[0]}, {click_grid_coords[1]})", True, (255, 255, 0)), (cx, cy))
 
-        # Game log messages
         for i, msg in enumerate(messages):
             screen.blit(small_font.render(msg, True, (200, 200, 100)), (20, 450 + i * 20))
 
-        # Chat box
         pygame.draw.rect(screen, (200, 200, 200), chat_input_box)
         placeholder = chat_input_text if typing_in_chat or chat_input_text else "Chat here"
         rendered_input_text = pygame.font.SysFont(None, 20).render(placeholder, True, (0, 0, 0))
 
         screen.blit(rendered_input_text, (chat_input_box.x + 5, chat_input_box.y + 15))
 
-        # Turn info surface
         if turn_text_surface:
             screen.blit(turn_text_surface, (10, 10))
 
@@ -452,12 +424,9 @@ def launch_game(client_socket, username, secure):
                 else:
                     chat_input_text += event.unicode
 
-
-        # Always show the last turn info
         if turn_text_surface:
             screen.blit(turn_text_surface, (10, 10))
 
-        # Display username at top right
         username_text = small_font.render(f"Player: {username}", True, (255, 255, 255))
         screen.blit(username_text, (screen_width - username_text.get_width() - 10, 10))
 
@@ -471,7 +440,7 @@ def launch_game(client_socket, username, secure):
 
         
         status_check_timer += 1
-        if status_check_timer >= 30:  # every ~30 frames (~0.5 sec at 60 FPS)
+        if status_check_timer >= 30:
             check_status()
             status_check_timer = 0
         
@@ -493,5 +462,4 @@ if __name__ == "__main__":
     server_pub = int(client_socket.recv(4096).decode())
     client_socket.send(str(secure.public).encode())
     secure.generate_shared_key(server_pub)
-    # Start with login screen
     login_screen(secure)

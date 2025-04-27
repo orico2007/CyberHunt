@@ -63,7 +63,6 @@ def handle_client(client_socket, addr):
                 case 'LEADERBOARD':
                     cmdLeaderboard(client_socket, secure)
 
-
     except Exception as e:
         print(f"[DISCONNECT] {addr} disconnected.")
         cleanup_player(client_socket,player,rooms_lock,rooms,clients,clients_lock, secure)

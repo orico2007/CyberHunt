@@ -345,24 +345,21 @@ def checkPlayer(username, password, clients):
     stored_hash = users[username]["password"]
     provided_hash = hash_password(password, stored_salt)
 
-    # Compare hashed password
     if stored_hash != provided_hash:
         return False
 
-    # Check if player is already connected
     for player in clients.values():
         if player.username == username:
             return False
-
     return True
 
 def savePlayer(username, password):
     users = load_users()
 
     if username in users:
-        return False  # Username already taken
+        return False
 
-    salt = secrets.token_hex(16)  # 32-character random hex salt
+    salt = secrets.token_hex(16)
     hashed_password = hash_password(password, salt)
 
     users[username] = {
@@ -370,10 +367,8 @@ def savePlayer(username, password):
         "salt": salt,
         "wins": 0
     }
-
     save_users(users)
     return True
-
 
 def parse_command(msg):
     parts = msg.strip().split()
@@ -384,7 +379,6 @@ def parse_command(msg):
         if '=' in part:
             key, value = part.split('=', 1)
             args[key] = value
-
     return {'type': cmd_type, 'args': args}
 
 def create_empty_board():
@@ -566,8 +560,6 @@ def cmdBot(player,client_socket,rooms_lock,rooms, secure):
         player.room_id = room_id
         sendWithSize(f'CREATE_BOT room_id={room_id} room_name={room_name}', client_socket, secure)
 
-
-
 def cmdLeaderboard(client_socket, secure):
     try:
         with open(USERS_FILE, "r") as f:
@@ -597,6 +589,3 @@ def cmdLeaderboard(client_socket, secure):
             "message": f"Failed to get leaderboard: {str(e)}"
         }
         sendWithSize(json.dumps(error_response), client_socket, secure)
-
-
-
