@@ -62,6 +62,10 @@ def handle_client(client_socket, addr):
                     cmdBot(player,client_socket,rooms_lock,rooms, secure)
                 case 'LEADERBOARD':
                     cmdLeaderboard(client_socket, secure)
+                case 'END_TURN':
+                    cmdEndTurn(player,rooms_lock,rooms, client_socket, secure)
+                case 'JOIN_ROOM_NAME':
+                    cmdJoinRoomName(player, command, client_socket, rooms_lock, rooms, secure)
 
     except Exception as e:
         print(f"[DISCONNECT] {addr} disconnected.")

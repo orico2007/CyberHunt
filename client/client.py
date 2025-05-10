@@ -7,6 +7,7 @@ import sys
 import threading
 import queue
 from KeyExchange import DiffieHellmanChannel, RSAChannel
+import time
 
 
 username = None
@@ -65,7 +66,7 @@ def register_screen(secure):
 
 def main_menu(secure):
     def join_game():
-        response = send_command("JOIN",client_socket, secure)
+        response = send_command("JOIN", client_socket, secure)
         command = parse_command(response)
         if command['type'] == "ROOM_JOINED":
             menu.destroy()
@@ -74,16 +75,16 @@ def main_menu(secure):
             messagebox.showerror("Join Failed", response)
 
     def create_game():
-        response = send_command("CREATE",client_socket, secure)
+        response = send_command("CREATE", client_socket, secure)
         command = parse_command(response)
-        if command['type'] =="ROOM_CREATED":
+        if command['type'] == "ROOM_CREATED":
             menu.destroy()
-            lobby_screen(secure, room_info=command['args']['room_name'],is_host=True)
+            lobby_screen(secure, room_info=command['args']['room_name'], is_host=True)
         else:
             messagebox.showerror("Create Failed", response)
 
     def view_rooms():
-        response = send_command("VIEW",client_socket, secure)
+        response = send_command("VIEW", client_socket, secure)
         messagebox.showinfo("Available Rooms", response)
 
     def bot_game():
@@ -108,15 +109,39 @@ def main_menu(secure):
 
     menu = tk.Tk()
     menu.title("Cyber Hunt - Main Menu")
-    menu.geometry("400x300")
+    menu.geometry("400x400")
     tk.Label(menu, text=f"Welcome, {username}").pack()
-    tk.Button(menu, text="Join Room", command=join_game).pack()
-    tk.Button(menu, text="Create Room", command=create_game).pack()
-    tk.Button(menu, text="View Rooms", command=view_rooms).pack()
-    tk.Button(menu, text="Bot Game", command=bot_game).pack()
-    tk.Button(menu, text="Leaderboard", command=view_leaderboard).pack()
+
+    # Main menu buttons
+    tk.Button(menu, text="Join Room", command=join_game).pack(pady=5)
+    tk.Button(menu, text="Create Room", command=create_game).pack(pady=5)
+    tk.Button(menu, text="View Rooms", command=view_rooms).pack(pady=5)
+    tk.Button(menu, text="Bot Game", command=bot_game).pack(pady=5)
+    tk.Button(menu, text="Leaderboard", command=view_leaderboard).pack(pady=5)
+
+    # Room name input field and button to join a room
+    tk.Label(menu, text="Enter Room Name to Join:").pack(pady=10)
+    room_name_entry = tk.Entry(menu)
+    room_name_entry.pack(pady=5)
+
+    def join_specific_room():
+        room_name = room_name_entry.get()
+        if room_name:
+            response = send_command(f"JOIN_ROOM_NAME room_name={room_name}", client_socket, secure)
+            command = parse_command(response)
+            if command['type'] == "JOIN_ROOM_NAME":
+                menu.destroy()
+                lobby_screen(secure, room_info=command['args']['room_name'])
+            else:
+                messagebox.showerror("Join Failed", f"Failed to join room {room_name}: {response}")
+        else:
+            messagebox.showerror("Invalid Input", "Please enter a valid room name.")
+
+    join_specific_button = tk.Button(menu, text="Join Specific Room", command=join_specific_room)
+    join_specific_button.pack(pady=5)
 
     menu.mainloop()
+
 
 def leaderboard_window(players):
     leaderboard_win = tk.Toplevel()
@@ -156,8 +181,27 @@ def lobby_screen(secure, room_info="Room Info", players=None, is_host=False):
     players_label = tk.Label(players_frame, text=f"Players in Room: {len(players)} / 4")
     players_label.pack()
 
+    start_time = time.time()
+    countdown_label = tk.Label(lobby, text="Game auto-starts in: 120", font=("Arial", 12))
+    if is_host:
+        countdown_label.pack()
+
+
     player_list_frame = tk.Frame(players_frame)
     player_list_frame.pack()
+
+    def update_countdown():
+        if not is_host:
+            return
+        elapsed = time.time() - start_time
+        remaining = max(0, int(120 - elapsed))
+        countdown_label.config(text=f"Game auto-starts in: {remaining} seconds")
+
+        if remaining <= 0:
+            start_game_pressed()
+        else:
+            countdown_label.after(1000, update_countdown)
+
 
     def update_players():
         try:
@@ -189,12 +233,15 @@ def lobby_screen(secure, room_info="Room Info", players=None, is_host=False):
         except tk.TclError:
             print("UI destroyed while updating players.")
             return
-
-    def start_game_pressed():
+    
+    def start_game_pressed(): 
+        nonlocal start_time
         response = send_command("START",client_socket, secure)
 
         if not response.startswith("STARTING"):
             messagebox.showerror("Start Failed", response)
+            start_time = time.time()
+            update_countdown()
 
     def leave_room():
         response = send_command("LEAVE",client_socket, secure)
@@ -206,6 +253,8 @@ def lobby_screen(secure, room_info="Room Info", players=None, is_host=False):
 
     if is_host:
         tk.Button(lobby, text="Start Game", command=start_game_pressed).pack(pady=10)
+        update_countdown()
+
     tk.Button(lobby, text="Back to Menu", command=leave_room).pack()
 
     update_players()
@@ -262,8 +311,26 @@ def launch_game(client_socket, username, secure):
         if len(messages) > 4:
             messages.pop(0)
 
+    TURN_DURATION = 30
+    turn_start_time = None
+    turn_timer_active = False
+
+    def turn_timer_loop():
+        nonlocal turn_timer_active, turn_start_time
+        while game_running:
+            if turn_timer_active and turn_start_time:
+                elapsed = time.time() - turn_start_time
+                if elapsed >= TURN_DURATION:
+                    log("Turn time expired.")
+                    send_command("END_TURN", client_socket, secure)
+                    turn_timer_active = False
+            time.sleep(1)
+
+    timer_thread = threading.Thread(target=turn_timer_loop, daemon=True)
+    timer_thread.start()
+
     def check_status():
-        nonlocal turn_text_surface, players_text_surface, is_alive, won
+        nonlocal turn_text_surface, players_text_surface, is_alive, won, turn_start_time, turn_timer_active
 
         response = send_command("STATUS", client_socket, secure)
         if response.startswith("STATUS"):
@@ -294,6 +361,15 @@ def launch_game(client_socket, username, secure):
                 for p in parts:
                     if p.startswith("username="):
                         current_turn = p.split("=")[1]
+                        if current_turn == username:
+                            if not turn_timer_active:
+                                log("Your turn started. Timer running.")
+                                turn_timer_active = True
+                                turn_start_time = time.time()
+                        else:
+                            turn_timer_active = False
+                            turn_start_time = None
+
 
             if not is_alive:
                 turn_text_surface = font.render("You are DEAD", True, (255, 0, 0))
@@ -371,7 +447,8 @@ def launch_game(client_socket, username, secure):
         for i, msg in enumerate(messages):
             screen.blit(small_font.render(msg, True, (200, 200, 100)), (20, 450 + i * 20))
 
-        pygame.draw.rect(screen, (200, 200, 200), chat_input_box)
+        pygame.draw.rect(screen, (255, 255, 0) if typing_in_chat else (200, 200, 200), chat_input_box, 2)
+
         placeholder = chat_input_text if typing_in_chat or chat_input_text else "Chat here"
         rendered_input_text = pygame.font.SysFont(None, 20).render(placeholder, True, (0, 0, 0))
 
@@ -379,16 +456,23 @@ def launch_game(client_socket, username, secure):
 
         if turn_text_surface:
             screen.blit(turn_text_surface, (10, 10))
+        
+        # Show remaining time during your turn
+        if turn_timer_active and turn_start_time:
+            remaining = int(TURN_DURATION - (time.time() - turn_start_time))
+            timer_text = small_font.render(f"Time left: {remaining}s", True, (255, 255, 0))
+            screen.blit(timer_text, (10, 40))
+
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 game_running = False
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if chat_input_box.collidepoint(event.pos):
+                    typing_in_chat = True
+                else:
+                    typing_in_chat = False
                 if not is_alive or won:
-                    if chat_input_box.collidepoint(event.pos):
-                        typing_in_chat = True
-                    else:
-                        typing_in_chat = False
                     continue
                 for rect, action in buttons:
                     if rect.collidepoint(event.pos):

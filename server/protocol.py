@@ -589,3 +589,27 @@ def cmdLeaderboard(client_socket, secure):
             "message": f"Failed to get leaderboard: {str(e)}"
         }
         sendWithSize(json.dumps(error_response), client_socket, secure)
+
+def cmdEndTurn(player,rooms_lock,rooms, client_socket, secure):
+    with rooms_lock:
+        room = rooms.get(player.room_id)
+    if room:
+        with room.lock:
+            room.end_turn()
+    sendWithSize(f'END_TURN', client_socket, secure)
+
+def cmdJoinRoomName(player, command, client_socket, rooms_lock, rooms, secure):
+    requested_name = command['args'].get('room_name')
+    if not requested_name:
+        sendWithSize('JOIN_FAIL reason="No room name provided"', client_socket, secure)
+        return
+
+    with rooms_lock:
+        for room_id, room in rooms.items():
+            room_name = f"Room{room_id}"
+            if room_name.lower() == requested_name.lower() and not room.started:
+                room.add_player(player)
+                player.room_id = room_id
+                sendWithSize(f'JOIN_ROOM_NAME room_id={room_id} room_name={room_name} players={len(room.players)}/4', client_socket, secure)
+                return
+        sendWithSize(f'JOIN_ROOM_NAME_FAILED reason="Room {requested_name} not found or already started"', client_socket, secure)

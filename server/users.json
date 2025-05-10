@@ -7,7 +7,7 @@
     "ffff": {
         "password": "0d1dab1c68249619381b35a18f03b527d78726ec2bccd742afa3bf40e2b138ab",
         "salt": "cd0ef0b1d153e4ccda4dd663f15ff34f",
-        "wins": 0
+        "wins": 1
     },
     "gggg": {
         "password": "08afc42040d0c7460de9332414d99ed8bb389e6b402a0fcc6b9e16c5121194dd",
@@ -17,7 +17,7 @@
     "rrrr": {
         "password": "3e2ed4274283ea8f6c615d8a22c16eba11a7edffe4b9c5d3965173e300f23d1d",
         "salt": "682aa7191a8ec1b108ac9a21d3f51e8a",
-        "wins": 23
+        "wins": 24
     },
     "eeee": {
         "password": "a76b90765b70ae084000a2389cca9749b5c3772cd7c2538a7391fef24a9fb4b7",
@@ -27,17 +27,17 @@
     "dddd": {
         "password": "85ee15109cdc77d8c9e5716e38ae534c67e29db88a8fa190fa26ba7c36792e19",
         "salt": "3f57190d8139aebf46de3b2a5bbc033e",
-        "wins": 4
+        "wins": 6
     },
     "ssss": {
         "password": "abe3cd51bacf7b75b6da4d84f50c3160a7a4aa58a163cf0c1e700d4281d0d649",
         "salt": "5c34f727dab06fef39fdb4624f594023",
-        "wins": 7
+        "wins": 8
     },
     "yyyy": {
         "password": "2caa7c1d69ca7e03ebec5190c0d519e5ada36748ecc9fb09d068efe1069f496a",
         "salt": "8bd85abe54961d3c3cecfa0207549832",
-        "wins": 0
+        "wins": 1
     },
     "hhhh": {
         "password": "e1daab070430d1f5d1b3794160c62fbe45493e26fa1381c31a236c20e6274a62",
