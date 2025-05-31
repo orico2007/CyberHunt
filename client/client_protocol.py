@@ -1,3 +1,9 @@
+DEBUG = True
+
+def debug_print(*args):
+    if DEBUG:
+        print("[DEBUG]", *args)
+
 def sendWithSize(message, conn, secure):
     if isinstance(message, str):
         message = message.encode()
@@ -42,6 +48,8 @@ def parse_command(msg):
         if '=' in part:
             key, value = part.split('=', 1)
             args[key] = value
+    
+    debug_print({'type': cmd_type, 'args': args})
     return {'type': cmd_type, 'args': args}
 
 def send_command(cmd, client_socket, secure):
@@ -54,15 +62,17 @@ def send_command(cmd, client_socket, secure):
             returned = recvWithSize(client_socket, secure)
             returnedP = parse_command(returned)
     elif cmdType == "LEADERBOARD":
+        debug_print(returned)
         return returned
     else:
         while not cmdType in returnedP["type"]:
             returned = recvWithSize(client_socket, secure)
             returnedP = parse_command(returned)
+    debug_print(returned)
     return returned
 
 def parse_status(response):
     parts = response.split("|")
-    print(parts)
+    debug_print([parse_command(parts[0]),parse_command(parts[1]),parse_command(parts[2]) if parts[2] else ""])
     return [parse_command(parts[0]),parse_command(parts[1]),parse_command(parts[2]) if parts[2] else ""]
 

@@ -12,11 +12,18 @@ import time
 
 username = None
 
+DEBUG = True
+
+def debug_print(*args):
+    if DEBUG:
+        print("[DEBUG]", *args)
+
 def login_screen(secure):
     def doLogin():
         u = username_entry.get()
         p = password_entry.get()
         response = send_command(f"LOGIN username={u} password={p}",client_socket, secure)
+        debug_print(response)
         if response.startswith("LOGIN_SUCCESS"):
             global username
             username = u
@@ -43,6 +50,7 @@ def register_screen(secure):
         u = username_entry.get()
         p = password_entry.get()
         response = send_command(f"REGISTER username={u} password={p}",client_socket, secure)
+        debug_print(response)
         if response.startswith("REGISTER_SUCCESS"):
             global username
             username = u
@@ -67,6 +75,7 @@ def register_screen(secure):
 def main_menu(secure):
     def join_game():
         response = send_command("JOIN", client_socket, secure)
+        debug_print(response)
         command = parse_command(response)
         if command['type'] == "ROOM_JOINED":
             menu.destroy()
@@ -76,6 +85,7 @@ def main_menu(secure):
 
     def create_game():
         response = send_command("CREATE", client_socket, secure)
+        debug_print(response)
         command = parse_command(response)
         if command['type'] == "ROOM_CREATED":
             menu.destroy()
@@ -85,10 +95,12 @@ def main_menu(secure):
 
     def view_rooms():
         response = send_command("VIEW", client_socket, secure)
+        debug_print(response)
         messagebox.showinfo("Available Rooms", response)
 
     def bot_game():
         response = send_command("CREATE_BOT", client_socket, secure)
+        debug_print(response)
         command = parse_command(response)
         if command['type'] == "CREATE_BOT":
             # Optionally skip lobby and go straight to game
@@ -100,7 +112,7 @@ def main_menu(secure):
 
     def view_leaderboard():
         response = send_command("LEADERBOARD", client_socket, secure)
-        print(response)
+        debug_print(response)
         if response.startswith('"LEADERBOARD'):
             players = response.split()[1:-1]
             leaderboard_window(players)
@@ -128,6 +140,7 @@ def main_menu(secure):
         room_name = room_name_entry.get()
         if room_name:
             response = send_command(f"JOIN_ROOM_NAME room_name={room_name}", client_socket, secure)
+            debug_print(response)
             command = parse_command(response)
             if command['type'] == "JOIN_ROOM_NAME":
                 menu.destroy()
@@ -231,6 +244,7 @@ def lobby_screen(secure, room_info="Room Info", players=None, is_host=False):
             players_label.after(1000, update_players)
 
         except tk.TclError:
+            debug_print("UI destroyed while updating players.")
             print("UI destroyed while updating players.")
             return
     
@@ -317,7 +331,7 @@ def launch_game(client_socket, username, secure):
 
     def turn_timer_loop():
         nonlocal turn_timer_active, turn_start_time
-        while game_running:
+        while game_running and is_alive and not won:
             if turn_timer_active and turn_start_time:
                 elapsed = time.time() - turn_start_time
                 if elapsed >= TURN_DURATION:
