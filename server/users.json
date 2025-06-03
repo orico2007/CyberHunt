@@ -7,7 +7,7 @@
     "ffff": {
         "password": "0d1dab1c68249619381b35a18f03b527d78726ec2bccd742afa3bf40e2b138ab",
         "salt": "cd0ef0b1d153e4ccda4dd663f15ff34f",
-        "wins": 1
+        "wins": 2
     },
     "gggg": {
         "password": "08afc42040d0c7460de9332414d99ed8bb389e6b402a0fcc6b9e16c5121194dd",
@@ -43,5 +43,10 @@
         "password": "e1daab070430d1f5d1b3794160c62fbe45493e26fa1381c31a236c20e6274a62",
         "salt": "2a12a77a8d4dcdd8098b82410b35e1ed",
         "wins": 0
+    },
+    "oooo": {
+        "password": "715084180d5c3b07dc21928b5bbf4fd269b784bf41d0c5c91d2293fb8fa45b86",
+        "salt": "40bf352a374a8250e5d96ff62a5e36ee",
+        "wins": 1
     }
 }
