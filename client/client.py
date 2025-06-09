@@ -550,6 +550,7 @@ def launch_game(client_socket, username, secure):
         pygame.display.flip()
     
     response = send_command("LEAVE",client_socket, secure)
+    time.sleep(0.1)
     client_socket.close()
     pygame.quit()
     sys.exit()

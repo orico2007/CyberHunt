@@ -2,7 +2,7 @@
     "tttt": {
         "password": "acd6dab86580db401dbd445d14f539e2247fec025a258ff8ffb3b91ef1b72e73",
         "salt": "5988ac5b7a4b7eb67391d55da760cafa",
-        "wins": 4
+        "wins": 6
     },
     "ffff": {
         "password": "0d1dab1c68249619381b35a18f03b527d78726ec2bccd742afa3bf40e2b138ab",
