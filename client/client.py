@@ -1,31 +1,32 @@
 import tkinter as tk
 from tkinter import messagebox
-from client_protocol import *
 import socket
-import threading
-import queue
+from client_protocol import *
 import pygame
 import sys
-import time
+import threading
+import queue
 from KeyExchange import DiffieHellmanChannel, RSAChannel
+import time
+
 
 username = None
-DEBUG = False
+
+DEBUG = True
 
 def debug_print(*args):
     if DEBUG:
         print("[DEBUG]", *args)
 
 def login_screen(secure):
-    def do_login():
-        user = username_entry.get()
-        pwd = password_entry.get()
-        response = send_command(f"LOGIN username={user} password={pwd}", client_socket, secure)
+    def doLogin():
+        u = username_entry.get()
+        p = password_entry.get()
+        response = send_command(f"LOGIN username={u} password={p}",client_socket, secure)
         debug_print(response)
-        
         if response.startswith("LOGIN_SUCCESS"):
             global username
-            username = user
+            username = u
             window.destroy()
             main_menu(secure)
         else:
@@ -34,30 +35,25 @@ def login_screen(secure):
     window = tk.Tk()
     window.title("Cyber Hunt - Login")
     window.geometry("400x300")
-
-    tk.Label(window, text="Username").pack(pady=(20, 5))
+    tk.Label(window, text="Username").pack()
     username_entry = tk.Entry(window)
-    username_entry.pack(pady=5)
-
-    tk.Label(window, text="Password").pack(pady=5)
+    username_entry.pack()
+    tk.Label(window, text="Password").pack()
     password_entry = tk.Entry(window, show="*")
-    password_entry.pack(pady=(0, 20))
-
-    tk.Button(window, text="Login", command=do_login).pack(pady=5)
-    tk.Button(window, text="Register", command=lambda: [window.destroy(), register_screen(secure)]).pack(pady=5)
-
+    password_entry.pack()
+    tk.Button(window, text="Login", command=doLogin).pack()
+    tk.Button(window, text="Register", command=lambda:[window.destroy(), register_screen(secure)]).pack()
     window.mainloop()
 
 def register_screen(secure):
-    def do_register():
-        user = username_entry.get()
-        pwd = password_entry.get()
-        response = send_command(f"REGISTER username={user} password={pwd}", client_socket, secure)
+    def doRegister():
+        u = username_entry.get()
+        p = password_entry.get()
+        response = send_command(f"REGISTER username={u} password={p}",client_socket, secure)
         debug_print(response)
-        
         if response.startswith("REGISTER_SUCCESS"):
             global username
-            username = user
+            username = u
             window.destroy()
             main_menu(secure)
         else:
@@ -66,18 +62,14 @@ def register_screen(secure):
     window = tk.Tk()
     window.title("Cyber Hunt - Register")
     window.geometry("400x300")
-
-    tk.Label(window, text="Username").pack(pady=(20, 5))
+    tk.Label(window, text="Username").pack()
     username_entry = tk.Entry(window)
-    username_entry.pack(pady=5)
-
-    tk.Label(window, text="Password").pack(pady=5)
+    username_entry.pack()
+    tk.Label(window, text="Password").pack()
     password_entry = tk.Entry(window, show="*")
-    password_entry.pack(pady=(0, 20))
-
-    tk.Button(window, text="Register", command=do_register).pack(pady=5)
-    tk.Button(window, text="Back to Login", command=lambda: [window.destroy(), login_screen(secure)]).pack(pady=5)
-
+    password_entry.pack()
+    tk.Button(window, text="Register", command=doRegister).pack()
+    tk.Button(window, text="Back to Login", command=lambda:[window.destroy(), login_screen(secure)]).pack()
     window.mainloop()
 
 def main_menu(secure):
@@ -111,6 +103,7 @@ def main_menu(secure):
         debug_print(response)
         command = parse_command(response)
         if command['type'] == "CREATE_BOT":
+            # Optionally skip lobby and go straight to game
             menu.destroy()
             username = send_command("USERNAME", client_socket, secure).split()[1]
             launch_game(client_socket, username, secure)
@@ -129,35 +122,36 @@ def main_menu(secure):
     menu = tk.Tk()
     menu.title("Cyber Hunt - Main Menu")
     menu.geometry("400x400")
+    tk.Label(menu, text=f"Welcome, {username}").pack()
 
-    tk.Label(menu, text=f"Welcome, {username}").pack(pady=10)
-
+    # Main menu buttons
     tk.Button(menu, text="Join Room", command=join_game).pack(pady=5)
     tk.Button(menu, text="Create Room", command=create_game).pack(pady=5)
     tk.Button(menu, text="View Rooms", command=view_rooms).pack(pady=5)
     tk.Button(menu, text="Bot Game", command=bot_game).pack(pady=5)
     tk.Button(menu, text="Leaderboard", command=view_leaderboard).pack(pady=5)
 
-    tk.Label(menu, text="Enter Room Name to Join:").pack(pady=(20, 5))
+    # Room name input field and button to join a room
+    tk.Label(menu, text="Enter Room Name to Join:").pack(pady=10)
     room_name_entry = tk.Entry(menu)
     room_name_entry.pack(pady=5)
 
     def join_specific_room():
         room_name = room_name_entry.get()
-        if not room_name:
-            messagebox.showerror("Invalid Input", "Please enter a valid room name.")
-            return
-        
-        response = send_command(f"JOIN_ROOM_NAME room_name={room_name}", client_socket, secure)
-        debug_print(response)
-        command = parse_command(response)
-        if command['type'] == "JOIN_ROOM_NAME":
-            menu.destroy()
-            lobby_screen(secure, room_info=command['args']['room_name'])
+        if room_name:
+            response = send_command(f"JOIN_ROOM_NAME room_name={room_name}", client_socket, secure)
+            debug_print(response)
+            command = parse_command(response)
+            if command['type'] == "JOIN_ROOM_NAME":
+                menu.destroy()
+                lobby_screen(secure, room_info=command['args']['room_name'])
+            else:
+                messagebox.showerror("Join Failed", f"Failed to join room {room_name}: {response}")
         else:
-            messagebox.showerror("Join Failed", f"Failed to join room {room_name}: {response}")
+            messagebox.showerror("Invalid Input", "Please enter a valid room name.")
 
-    tk.Button(menu, text="Join Specific Room", command=join_specific_room).pack(pady=5)
+    join_specific_button = tk.Button(menu, text="Join Specific Room", command=join_specific_room)
+    join_specific_button.pack(pady=5)
 
     menu.mainloop()
 
@@ -479,7 +473,7 @@ def launch_game(client_socket, username, secure):
             screen.blit(turn_text_surface, (10, 10))
         
         # Show remaining time during your turn
-        if turn_timer_active and turn_start_time and not won:
+        if turn_timer_active and turn_start_time:
             remaining = int(TURN_DURATION - (time.time() - turn_start_time))
             timer_text = small_font.render(f"Time left: {remaining}s", True, (255, 255, 0))
             screen.blit(timer_text, (10, 40))

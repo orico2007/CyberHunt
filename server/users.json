@@ -2,12 +2,12 @@
     "tttt": {
         "password": "acd6dab86580db401dbd445d14f539e2247fec025a258ff8ffb3b91ef1b72e73",
         "salt": "5988ac5b7a4b7eb67391d55da760cafa",
-        "wins": 3
+        "wins": 4
     },
     "ffff": {
         "password": "0d1dab1c68249619381b35a18f03b527d78726ec2bccd742afa3bf40e2b138ab",
         "salt": "cd0ef0b1d153e4ccda4dd663f15ff34f",
-        "wins": 2
+        "wins": 3
     },
     "gggg": {
         "password": "08afc42040d0c7460de9332414d99ed8bb389e6b402a0fcc6b9e16c5121194dd",
@@ -17,7 +17,7 @@
     "rrrr": {
         "password": "3e2ed4274283ea8f6c615d8a22c16eba11a7edffe4b9c5d3965173e300f23d1d",
         "salt": "682aa7191a8ec1b108ac9a21d3f51e8a",
-        "wins": 24
+        "wins": 25
     },
     "eeee": {
         "password": "a76b90765b70ae084000a2389cca9749b5c3772cd7c2538a7391fef24a9fb4b7",
@@ -37,7 +37,7 @@
     "yyyy": {
         "password": "2caa7c1d69ca7e03ebec5190c0d519e5ada36748ecc9fb09d068efe1069f496a",
         "salt": "8bd85abe54961d3c3cecfa0207549832",
-        "wins": 1
+        "wins": 2
     },
     "hhhh": {
         "password": "e1daab070430d1f5d1b3794160c62fbe45493e26fa1381c31a236c20e6274a62",
@@ -47,6 +47,16 @@
     "oooo": {
         "password": "715084180d5c3b07dc21928b5bbf4fd269b784bf41d0c5c91d2293fb8fa45b86",
         "salt": "40bf352a374a8250e5d96ff62a5e36ee",
+        "wins": 1
+    },
+    "ophir": {
+        "password": "bb05a122411d06d88562e009a33918ac2f53b17b88e71bcad30265f9d1ccd322",
+        "salt": "2845e1d597ff53e54624fdf9bcf8b65b",
+        "wins": 0
+    },
+    "ophir123": {
+        "password": "b83977cdd51796089594eddbcea93e8c1ad028ec84453a10ae109a1348542569",
+        "salt": "65f9ab43c7ada3d469aa09ca56b9280c",
         "wins": 1
     }
 }
